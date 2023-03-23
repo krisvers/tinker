@@ -1,15 +1,19 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
+#include <math.h>
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGHT 600
 #define WINDOW_NAME "game"
 #define PIXEL_SCALE 5
 #define TRANSPARENT_COLOR 0xFF00FF
+#define BACKGROUND_COLOR 0x101424
 #define TEXTURE_SIZE 8
 #define TEXTURE_NUM 2
 
-#define RGB(r, g, b) b << 24 | g << 16 | r << 8
+#define RGB(r, g, b) b | g << 8 | r << 16
+
+// time is your enemy: fighting the clock literally (he steals your gf :'c )
 
 SDL_Window * window;
 SDL_Surface * surface;
@@ -36,29 +40,37 @@ enum color {
 
 enum color atlas[TEXTURE_NUM][TEXTURE_SIZE][TEXTURE_SIZE] = {
 	// grass
-	LIME,		LIME,		LIME,		LIME,		LIME,		LIME,		LIME,		LIME,
-	GREEN,	LIME,		GREEN,	GREEN,	LIME,		LIME,		GREEN,	GREEN,
-	BROWN,	GREEN,	BROWN,	BROWN,	GREEN,	GREEN,	BROWN,	BROWN,
-	BROWN,	TAN,		TAN,		BROWN,	BROWN,	BROWN,	TAN,		BROWN,
-	BROWN,	BROWN,	GREY,		BROWN,	BROWN,	BROWN,	TAN,		BROWN,
-	TAN,		BROWN,	BROWN,	BROWN,	TAN,		BROWN,	GREY,		TAN,
-	BROWN,	BROWN,	BROWN,	TAN,		GREY,		BROWN,	BROWN,	BROWN,
-	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,
+	{
+	{	LIME,	LIME,	LIME,	LIME,	LIME,	LIME,	LIME,	LIME,	},
+	{	GREEN,	LIME,	GREEN,	GREEN,	LIME,	LIME,	GREEN,	GREEN,	},
+	{	BROWN,	GREEN,	BROWN,	BROWN,	GREEN,	GREEN,	BROWN,	BROWN,	},
+	{	BROWN,	TAN,	TAN,	BROWN,	BROWN,	BROWN,	TAN,	BROWN,	},
+	{	BROWN,	BROWN,	GREY,	BROWN,	BROWN,	BROWN,	TAN,	BROWN,	},
+	{	TAN,	BROWN,	BROWN,	BROWN,	TAN,	BROWN,	GREY,	TAN,	},
+	{	BROWN,	BROWN,	BROWN,	TAN,	GREY,	BROWN,	BROWN,	BROWN,	},
+	{	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	BROWN,	},
+	},
 	// glass
-	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,
-	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,
-	WHITE,	TRANS,	TRANS,	WHITE,	TRANS,	TRANS,	TRANS,	WHITE,
-	WHITE,	TRANS,	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,
-	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,
-	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,	TRANS,	WHITE,
-	WHITE,	TRANS,	TRANS,	TRANS,	WHITE,	TRANS,	TRANS,	WHITE,
-	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,
+	{
+	{	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	},
+	{	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,	},
+	{	WHITE,	TRANS,	TRANS,	WHITE,	TRANS,	TRANS,	TRANS,	WHITE,	},
+	{	WHITE,	TRANS,	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,	},
+	{	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,	},
+	{	WHITE,	TRANS,	TRANS,	TRANS,	TRANS,	WHITE,	TRANS,	WHITE,	},
+	{	WHITE,	TRANS,	TRANS,	TRANS,	WHITE,	TRANS,	TRANS,	WHITE,	},
+	{	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	},
+	},
 };
 
 struct Transform {
 	int x, y;
 	double w, h;
 };
+
+struct Camera {
+	double x, y;
+} camera;
 
 struct ColorBox {
 	struct Transform transform;
@@ -69,6 +81,42 @@ struct TextureBox {
 	struct Transform transform;
 	unsigned int tex;
 };
+
+struct Entity {
+	struct Transform transform;
+	unsigned int tex;	
+};
+
+void cam_pixel(unsigned int x, unsigned int y, unsigned int color) {
+	if (surface == NULL) {
+		printf("cam_pixel() error: no surface to draw to!\n");
+		return;
+	}
+	
+	if (x * PIXEL_SCALE - ((long int) camera.x) > (WINDOW_WIDTH - 1) || x * PIXEL_SCALE - ((long int) camera.x) < 0) {
+		//printf("cam_pixel() warning: x out of bounds for drawing!\n");
+		return;
+	}
+	
+	if (y * PIXEL_SCALE + ((long int) camera.y) > (WINDOW_HEIGHT - 1) || y * PIXEL_SCALE + ((long int) camera.y) < 0) {
+		//printf("cam_pixel() warning: y out of bounds for drawing!\n");
+		return;
+	}
+	
+	if (color == TRANSPARENT_COLOR) {
+		return;
+	}
+
+	for (unsigned int a = 0; a < PIXEL_SCALE; a++) {
+		for (unsigned int b = 0; b < PIXEL_SCALE; b++) {
+			if ((x * PIXEL_SCALE) - ((long int) camera.x) - a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH >= (WINDOW_WIDTH - 1) * (WINDOW_HEIGHT - 1) || (x * PIXEL_SCALE) + ((long int) camera.x) - a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH < 0) {
+				break;
+			}
+
+			((unsigned int *) surface->pixels)[(unsigned int) ((x * PIXEL_SCALE) - ((long int) camera.x) + a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH)] = color;
+		}
+	}
+}
 
 void pixel(unsigned int x, unsigned int y, unsigned int color) {
 	if (surface == NULL) {
@@ -101,6 +149,14 @@ void pixel(unsigned int x, unsigned int y, unsigned int color) {
 	}
 }
 
+void clear() {
+	for (unsigned int a = 0; a < WINDOW_WIDTH / PIXEL_SCALE; a++) {
+		for (unsigned int b = 0; b < WINDOW_HEIGHT / PIXEL_SCALE; b++) {
+			pixel(a, b, BACKGROUND_COLOR);
+		}
+	}
+}
+
 void draw_texture(unsigned int x, unsigned int y, unsigned int index) {
 	if (index >= TEXTURE_NUM) {
 		printf("draw_texture() error: index is larger than number of textures!\n");
@@ -109,7 +165,34 @@ void draw_texture(unsigned int x, unsigned int y, unsigned int index) {
 	
 	for (unsigned int a = 0; a < TEXTURE_SIZE; a++) {
 		for (unsigned int b = 0; b < TEXTURE_SIZE; b++) {
-			pixel(x + a, y + b, atlas[index][b][a]);
+			cam_pixel(x + a, y + b, atlas[index][b][a]);
+		}
+	}
+}
+
+// doesn't work yet
+void draw_tiled_texture(unsigned int x, unsigned int y, double w, double h, unsigned int index) {
+	if (index >= TEXTURE_NUM) {
+		printf("draw_tiled_texture() error: index is larger than the number of textures!\n");
+		return;
+	}
+		
+	for (unsigned int a = 0; a < (unsigned int) round(w * (TEXTURE_SIZE)); a++) {
+		for (unsigned int b = 0; b < (unsigned int) round(h * (TEXTURE_SIZE)); b++) {
+			unsigned int c = ((int) a / w);
+			unsigned int d = ((int) b / h);
+			
+			if (c >= TEXTURE_SIZE) {
+				printf("draw_tiled_texture() warning: c is out of bounds for the atlas!\n");
+				break;
+			}
+		
+			if (d >= TEXTURE_SIZE) {
+				printf("draw_tiled_texture() warning: d is out of bounds for the atlas!\n");
+				break;
+			}
+			
+			cam_pixel(x + a, y + b, atlas[index][d][c]);
 		}
 	}
 }
@@ -120,15 +203,34 @@ void draw_scaled_texture(unsigned int x, unsigned int y, double w, double h, uns
 		return;
 	}
 	
-	for (unsigned int a = 0; a < (unsigned int) w * (TEXTURE_SIZE + 1); a++) {
-		for (unsigned int b = 0; b < (unsigned int) h * (TEXTURE_SIZE + 1); b++) {
-			pixel(x + a, y + b, atlas[index][(int) (b / h)][(int) (a / w)]);
+	for (unsigned int a = 0; a < (unsigned int) round(w * (TEXTURE_SIZE)); a++) {
+		for (unsigned int b = 0; b < (unsigned int) round(h * (TEXTURE_SIZE)); b++) {
+			unsigned int c = ((int) (a / w));
+			unsigned int d = ((int) (b / h));
+			
+			if (c >= TEXTURE_SIZE) {
+				printf("draw_scaled_texture() warning: c is out of bounds for the atlas!\n");
+				break;
+			}
+			
+			if (d >= TEXTURE_SIZE) {
+				printf("draw_scaled_texture() warning: d is out of bounds for the atlas!\n");
+				break;
+			}
+			
+			cam_pixel(x + a, y + b, atlas[index][d][c]);
 		}
 	}
 }
 
-int main() {
+void draw_entity(struct Entity * ent) {
+	draw_scaled_texture(ent->transform.x, ent->transform.y, ent->transform.w, ent->transform.h, ent->tex);
+}
+
+int main(int argc, char ** argv) {
 	SDL_Event event;
+
+	if (argc == 1 || argv[1]) {}	// to not have unused parameter warning
 
 	if (SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		printf("SDL_Init failed: %s\n", SDL_GetError());
@@ -147,11 +249,21 @@ int main() {
 		return -3;
 	}
 
+	struct Entity test = {
+		{ 0, 0, 1.0, 1.0 }, 0
+	};
+
+	double i = 0.5;
+
 	while (event.type != SDL_QUIT) {
 		SDL_PollEvent(&event);
-		pixel(0, 0, RGB(0xFF, 0xFF, 0x00));
-		draw_scaled_texture(32, 32, 3.3, 6.9, 1);
+		clear();
+		pixel(0, 0, RED);
+		draw_scaled_texture(32, 32, i, 1.0, 1);
+		draw_entity(&test);
 		draw_texture(16, 16, 0);
+		i += 0.01;
+		camera.y += 0.25;
 		SDL_UpdateWindowSurface(window);
 	}
 	

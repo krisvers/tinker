@@ -1,2 +1,6 @@
+CC = gcc
+FLAGS = -O3 -lm
+EXTRA = -lSDL2
+
 all:
-	gcc main.c -o tinker -lSDL2
+	$(CC) main.c -o tinker $(FLAGS) $(EXTRA)
