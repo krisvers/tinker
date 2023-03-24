@@ -101,19 +101,9 @@ struct Entity {
 	unsigned int tex;
 };
 
-void cam_pixel(unsigned int x, unsigned int y, unsigned int color) {
+void cam_pixel(long int x, long int y, unsigned int color) {
 	if (surface == NULL) {
 		printf("cam_pixel() error: no surface to draw to!\n");
-		return;
-	}
-	
-	if (x * PIXEL_SCALE - ((long int) camera.x) > (WINDOW_WIDTH - 1) || x * PIXEL_SCALE - ((long int) camera.x) < 0) {
-		//printf("cam_pixel() warning: x out of bounds for drawing!\n");
-		return;
-	}
-	
-	if (y * PIXEL_SCALE + ((long int) camera.y) > (WINDOW_HEIGHT - 1) || y * PIXEL_SCALE + ((long int) camera.y) < 0) {
-		//printf("cam_pixel() warning: y out of bounds for drawing!\n");
 		return;
 	}
 	
@@ -123,11 +113,24 @@ void cam_pixel(unsigned int x, unsigned int y, unsigned int color) {
 
 	for (unsigned int a = 0; a < PIXEL_SCALE; a++) {
 		for (unsigned int b = 0; b < PIXEL_SCALE; b++) {
-			if ((x * PIXEL_SCALE) - ((long int) camera.x) - a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH >= (WINDOW_WIDTH - 1) * (WINDOW_HEIGHT - 1) || (x * PIXEL_SCALE) + ((long int) camera.x) - a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH < 0) {
+			unsigned int c = (x * PIXEL_SCALE) - ((long int) camera.x + (WINDOW_WIDTH + TEXTURE_SIZE * PIXEL_SCALE) / 2) - a + ((y * PIXEL_SCALE) + b + ((long int) camera.y + (WINDOW_HEIGHT - TEXTURE_SIZE * PIXEL_SCALE) / 2)) * WINDOW_WIDTH + PIXEL_SCALE - 1;
+			if (c >= (WINDOW_WIDTH - 1) * (WINDOW_HEIGHT - 1)) {
+				printf("a\n");
 				break;
 			}
 
-			((unsigned int *) surface->pixels)[(unsigned int) ((x * PIXEL_SCALE) - ((long int) camera.x) + a + ((y * PIXEL_SCALE) + b + ((long int) camera.y)) * WINDOW_WIDTH)] = color;
+			if (PIXEL_SCALE * x + a - (camera.x + (WINDOW_WIDTH + TEXTURE_SIZE * PIXEL_SCALE) / 2) >= WINDOW_WIDTH) {
+				printf("b cam: %lf, %lf, in: %li, %li, abc: %u, %u, %u\n", camera.x, camera.y, x, y, a, b, c);
+				break;
+			}
+
+			if (PIXEL_SCALE * y + b - (camera.y + (WINDOW_HEIGHT - TEXTURE_SIZE * PIXEL_SCALE) / 2) >= WINDOW_HEIGHT) {
+				printf("c cam: %lf, %lf, in: %li, %li, abc: %u, %u, %u\n", camera.x, camera.y, x, y, a, b, c);
+				break;
+			}
+
+			printf("d cam: %lf, %lf, in: %li, %li, abc: %u, %u, %u\n", camera.x, camera.y, x, y, a, b, c);
+			((unsigned int *) surface->pixels)[c] = color;
 		}
 	}
 }
@@ -271,7 +274,7 @@ int main(int argc, char ** argv) {
 		{ 0, 0, 1.0, 1.0 }, 2
 	};
 
-	double i = 0.5;
+	//double i = 0.5;
 
 	while (event.type != SDL_QUIT) {
 		SDL_PollEvent(&event);
@@ -303,16 +306,18 @@ int main(int argc, char ** argv) {
 
 		clear();
 		pixel(0, 0, RED);
-		draw_scaled_texture(32, 32, i, 1.0, 1);
+		//draw_scaled_texture(32, 32, i, 1.0, 1);
 		draw_entity(&test);
-		draw_texture(16, 16, 0);
-		i += 0.01;
-		test.transform.y -= key_pressed(SDLK_w) / 20.0;
-		test.transform.y += key_pressed(SDLK_s) / 20.0;
-		test.transform.x += key_pressed(SDLK_d) / 20.0;
-		test.transform.x -= key_pressed(SDLK_a) / 20.0;
-		camera.y = -test.transform.y * PIXEL_SCALE + WINDOW_HEIGHT / 2 - TEXTURE_SIZE * PIXEL_SCALE / 2;
-		camera.x = test.transform.x * PIXEL_SCALE - WINDOW_WIDTH / 2 + TEXTURE_SIZE * PIXEL_SCALE / 2;
+		//draw_texture(16, 16, 0);
+		//i += 0.01;
+		test.transform.x += key_pressed(SDLK_d) / 10.0;
+		test.transform.y += key_pressed(SDLK_s) / 10.0;
+		test.transform.x -= key_pressed(SDLK_a) / 10.0;
+		test.transform.y -= key_pressed(SDLK_w) / 10.0;
+		camera.x += key_pressed(SDLK_d) * PIXEL_SCALE / 10.0;
+		camera.x -= key_pressed(SDLK_a) * PIXEL_SCALE / 10.0;
+		camera.y += key_pressed(SDLK_w) * PIXEL_SCALE / 10.0;
+		camera.y -= key_pressed(SDLK_s) * PIXEL_SCALE / 10.0;
 		SDL_UpdateWindowSurface(window);
 	}
 
