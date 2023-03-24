@@ -7,9 +7,9 @@
 #define WINDOW_NAME "game"
 #define PIXEL_SCALE 5
 #define TRANSPARENT_COLOR 0xFF00FF
-#define BACKGROUND_COLOR 0x101424
+#define BACKGROUND_COLOR 0xE0E4F4
 #define TEXTURE_SIZE 8
-#define TEXTURE_NUM 2
+#define TEXTURE_NUM 3
 
 #define RGB(r, g, b) b | g << 8 | r << 16
 
@@ -35,6 +35,7 @@ enum color {
 	DBROWN = 0x3E2137,
 	GREY = 0x584563,
 	WHITE = 0xEBEBEB,
+	BLACK = 0X1F1020,
 	TRANS = TRANSPARENT_COLOR,
 };
 
@@ -61,10 +62,23 @@ enum color atlas[TEXTURE_NUM][TEXTURE_SIZE][TEXTURE_SIZE] = {
 	{	WHITE,	TRANS,	TRANS,	TRANS,	WHITE,	TRANS,	TRANS,	WHITE,	},
 	{	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	WHITE,	},
 	},
+	// player
+	{
+	{	TRANS,	TRANS,	BLACK,	BLACK,	BLACK,	BLACK,	TRANS,	TRANS,	},
+	{	TRANS,	BLACK,	YELLOW,	YELLOW,	YELLOW,	YELLOW,	BLACK,	TRANS,	},
+	{	TRANS,	BLACK,	DBROWN,	YELLOW,	YELLOW,	DBROWN,	BLACK,	TRANS,	},
+	{	TRANS,	BLACK,	YELLOW,	YELLOW,	YELLOW,	YELLOW,	BLACK,	TRANS,	},
+	{	TRANS,	BLACK,	BLACK,	BLACK,	BLACK,	BLACK,	BLACK,	TRANS,	},
+	{	TRANS,	TRANS,	BLACK,	TRANS,	TRANS,	BLACK,	TRANS,	TRANS,	},
+	{	TRANS,	TRANS,	BLACK,	TRANS,	TRANS,	BLACK,	TRANS,	TRANS,	},
+	{	TRANS,	BLACK,	BLACK,	TRANS,	TRANS,	BLACK,	BLACK,	TRANS,	},
+	},
 };
 
+unsigned char keys[41];
+
 struct Transform {
-	int x, y;
+	double x, y;
 	double w, h;
 };
 
@@ -84,7 +98,7 @@ struct TextureBox {
 
 struct Entity {
 	struct Transform transform;
-	unsigned int tex;	
+	unsigned int tex;
 };
 
 void cam_pixel(unsigned int x, unsigned int y, unsigned int color) {
@@ -118,18 +132,18 @@ void cam_pixel(unsigned int x, unsigned int y, unsigned int color) {
 	}
 }
 
-void pixel(unsigned int x, unsigned int y, unsigned int color) {
+void pixel(long int x, long int y, unsigned int color) {
 	if (surface == NULL) {
 		printf("pixel() error: no surface to draw to!\n");
 		return;
 	}
 	
-	if (x * PIXEL_SCALE > (WINDOW_WIDTH - 1)) {
+	if (x * PIXEL_SCALE > (WINDOW_WIDTH)) {
 		printf("pixel() warning: x out of bounds for drawing!\n");
 		return;
 	}
 	
-	if (y * PIXEL_SCALE > (WINDOW_HEIGHT - 1)) {
+	if (y * PIXEL_SCALE > (WINDOW_HEIGHT)) {
 		printf("pixel() warning: y out of bounds for drawing!\n");
 		return;
 	}
@@ -150,8 +164,8 @@ void pixel(unsigned int x, unsigned int y, unsigned int color) {
 }
 
 void clear() {
-	for (unsigned int a = 0; a < WINDOW_WIDTH / PIXEL_SCALE; a++) {
-		for (unsigned int b = 0; b < WINDOW_HEIGHT / PIXEL_SCALE; b++) {
+	for (unsigned int a = 0; a < WINDOW_WIDTH / PIXEL_SCALE + 1; a++) {
+		for (unsigned int b = 0; b < WINDOW_HEIGHT / PIXEL_SCALE + 1; b++) {
 			pixel(a, b, BACKGROUND_COLOR);
 		}
 	}
@@ -227,6 +241,10 @@ void draw_entity(struct Entity * ent) {
 	draw_scaled_texture(ent->transform.x, ent->transform.y, ent->transform.w, ent->transform.h, ent->tex);
 }
 
+unsigned char key_pressed(unsigned short key) {
+	return keys[key / 8] & (1 << (key % 8)) ? 1 : 0;
+}
+
 int main(int argc, char ** argv) {
 	SDL_Event event;
 
@@ -250,22 +268,55 @@ int main(int argc, char ** argv) {
 	}
 
 	struct Entity test = {
-		{ 0, 0, 1.0, 1.0 }, 0
+		{ 0, 0, 1.0, 1.0 }, 2
 	};
 
 	double i = 0.5;
 
 	while (event.type != SDL_QUIT) {
 		SDL_PollEvent(&event);
+
+		switch (event.type) {
+			case SDL_KEYDOWN:
+				if (event.key.keysym.sym > 322) {
+					break;
+				}
+
+				if (event.key.keysym.sym == SDLK_ESCAPE) {
+					goto loop_end;
+				}
+
+				keys[event.key.keysym.sym / 8] |= 1 << (event.key.keysym.sym % 8);
+				break;
+			case SDL_KEYUP:
+				if (event.key.keysym.sym > 322) {
+					break;
+				}
+
+				keys[event.key.keysym.sym / 8] = ~(~event.key.keysym.sym | 1 << (event.key.keysym.sym % 8));
+				break;
+			case SDL_QUIT:
+				goto loop_end;
+			default:
+				break;
+		}
+
 		clear();
 		pixel(0, 0, RED);
 		draw_scaled_texture(32, 32, i, 1.0, 1);
 		draw_entity(&test);
 		draw_texture(16, 16, 0);
 		i += 0.01;
-		camera.y += 0.25;
+		test.transform.y -= key_pressed(SDLK_w) / 20.0;
+		test.transform.y += key_pressed(SDLK_s) / 20.0;
+		test.transform.x += key_pressed(SDLK_d) / 20.0;
+		test.transform.x -= key_pressed(SDLK_a) / 20.0;
+		camera.y = -test.transform.y * PIXEL_SCALE + WINDOW_HEIGHT / 2 - TEXTURE_SIZE * PIXEL_SCALE / 2;
+		camera.x = test.transform.x * PIXEL_SCALE - WINDOW_WIDTH / 2 + TEXTURE_SIZE * PIXEL_SCALE / 2;
 		SDL_UpdateWindowSurface(window);
 	}
+
+loop_end:
 	
 	SDL_DestroyWindow(window);
 	SDL_Quit();
